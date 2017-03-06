@@ -1,7 +1,8 @@
 {
     "version": "0.1.0",
     "summary": "Snake game in Elm",
-    "repository": "https://github.com/iJaniashvili/Elm-snake.git",
+    "repository": "https://github.com/iJaniashvili/elm-snake.git",
+    "license": "BSD3",
     "source-directories": [
         "src/"
     ],

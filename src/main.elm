@@ -1,11 +1,12 @@
 import Html exposing (Html)
-import Svg exposing (svg, rect)
-import Svg.Attributes exposing (width, height, viewBox, x, y, fill, stroke)
+import Svg exposing (svg, rect, image)
+import Svg.Attributes exposing (width, height, viewBox, x, y, fill, stroke, xlinkHref)
 import Time exposing (Time, millisecond, second)
 import Keyboard exposing (KeyCode)
+import Random
 
-last : List a -> Maybe a
-last list = list |> List.reverse |> List.head
+import Shared exposing (..)
+import Controls exposing (Direction (..), mapKeyCode, nextDirection, moveSnake, eatFood, intersects)
 
 main : Program Never Model Msg
 main =
@@ -18,42 +19,32 @@ main =
 
 -- MODEL
 
-type Direction
-  = Up
-  | Down
-  | Left
-  | Right
-
 type alias Model =
   { interval : Time
   , direction : Direction
-  , snake : List (Int, Int)
+  , lastDirection : Direction
+  , snake : Snake
+  , food : Maybe Coord
   }
 
-snakeSize : Int
-snakeSize = 10
-
-initialInterval : Time
-initialInterval = 200
-
-initialSnake : List (Int, Int)
+initialSnake : Snake
 initialSnake =
-  let
-    startPosition = snakeSize * 5
-    startCoords = (startPosition, startPosition)
-    coordsMapper = (\index -> Tuple.mapFirst (\x -> x + snakeSize * index))
-  in
-    startCoords
-    |> List.repeat 5
-    |> List.indexedMap coordsMapper
+  (5, 5)
+  |> List.repeat 5
+  |> List.indexedMap (\index -> Tuple.mapFirst (\x -> x + index))
+
+randomFoodCoord : Random.Generator Coord
+randomFoodCoord = (Random.map2 (,) (Random.int 0 (xBound - 1)) (Random.int 0 (yBound - 1)))
 
 init : (Model, Cmd Msg)
 init =
   ( { interval = initialInterval
     , direction = Right
+    , lastDirection = Right
     , snake = initialSnake
+    , food = Nothing
     }
-  , Cmd.none
+  , Random.generate SetFood randomFoodCoord
   )
 
 -- UPDATE
@@ -62,37 +53,36 @@ type Msg
   = Tick Time
   | IncrementInterval Time
   | KeyPress KeyCode
+  | SetFood Coord
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
-  let
-    updateDirection =
-      case model.direction of
-        Up ->    Tuple.mapSecond (\y -> y - snakeSize)
-        Down ->  Tuple.mapSecond (\y -> y + snakeSize)
-        Left ->  Tuple.mapFirst  (\x -> x - snakeSize)
-        Right -> Tuple.mapFirst  (\x -> x + snakeSize)
+  case msg of
+    Tick _ ->
+      let
+        nextSnake = moveSnake model.direction model.snake
+        vograshiSnake = eatFood model.food nextSnake
+      in
+        ({ model | snake = vograshiSnake
+                 , lastDirection = model.direction}
+        , case Maybe.map2 (,) model.food (snakeHead nextSnake) of
+            Just (food, head) ->
+              if intersects head food
+                then Random.generate SetFood randomFoodCoord
+                else Cmd.none
+            _ -> Cmd.none
+        )
 
-    move snake =
-      case last snake of
-        Just head -> List.drop 1 snake ++ [updateDirection head]
-        Nothing -> snake
+    IncrementInterval _ ->
+      ({ model | interval = model.interval - 10 }, Cmd.none)
 
-  in
-    case msg of
-      Tick _ ->
-        ({ model | snake = (move model.snake) }, Cmd.none)
+    KeyPress keyCode ->
+      case mapKeyCode keyCode of
+        Just direction -> ({ model | direction = nextDirection model.lastDirection direction }, Cmd.none)
+        Nothing -> (model, Cmd.none)
 
-      IncrementInterval _ ->
-        ({ model | interval = model.interval - 10 }, Cmd.none)
-
-      KeyPress keyCode ->
-        case keyCode of
-          37 -> ({ model | direction = if model.direction == Right then Right else Left }, Cmd.none)
-          38 -> ({ model | direction = if model.direction == Down then Down else Up }, Cmd.none)
-          39 -> ({ model | direction = if model.direction == Left then Left else Right }, Cmd.none)
-          40 -> ({ model | direction = if model.direction == Up then Up else Down }, Cmd.none)
-          _ -> (model, Cmd.none)
+    SetFood foodCoord ->
+      ({ model | food = Just foodCoord }, Cmd.none)
 
 -- SUBSCRIPTIONS
 
@@ -104,28 +94,50 @@ subscriptions {interval} =
     , Keyboard.downs KeyPress
     ]
 
--- VIEW
+-- VIEWS
 
 view : Model -> Html Msg
 view model =
   let
-    svgAttributes = [ width "800", height "600", viewBox "0 0 800 600" ]
-    background = rect [ width "800", height "600", fill "#EFEFEF" ] []
-    snake = snakeView model
+    w = toString (xBound * boxSize)
+    h = toString (yBound * boxSize)
+    vb = "0 0 " ++ w ++ " " ++ h
+    backgroundView = rect [ width w, height h, fill "#EFEFEF" ] []
+    khinkaliView = khinkali model.food
+    snakeView = snake model.snake
   in
-    svg svgAttributes (background :: snake)
+    svg [ width w
+        , height h
+        , viewBox vb
+        ]
+        (case khinkaliView of
+          Just khinkaliView -> (backgroundView :: khinkaliView :: snakeView)
+          Nothing -> (backgroundView :: snakeView))
 
-snakeView : Model -> List (Html Msg)
-snakeView {snake} =
-  List.map (\s -> body (Tuple.first s) (Tuple.second s)) snake
+snake : Snake -> List (Html Msg)
+snake =
+  let
+    body (x1, y2) =
+      rect
+        [ x (toString (x1 * boxSize))
+        , y (toString (y2 * boxSize))
+        , width (toString boxSize)
+        , height (toString boxSize)
+        , fill "black"
+        , stroke "white"
+        ] []
+  in
+    List.map body
 
-body : Int -> Int -> Html Msg
-body x1 y2 =
-  rect
-    [ x (toString x1)
-    , y (toString y2)
-    , width (toString snakeSize)
-    , height (toString snakeSize)
-    , fill "black"
-    , stroke "white"
-    ] []
+khinkali : Maybe Coord -> Maybe (Html Msg)
+khinkali coord =
+  case coord of
+    Just (x1, y2) ->
+      Just (image [ x (toString (x1 * boxSize))
+                  , y (toString (y2 * boxSize))
+                  , width (toString boxSize)
+                  , height (toString boxSize)
+                  , xlinkHref "/assets/images/khinkali@2x.png"
+                  ]
+                  [])
+    Nothing -> Nothing
