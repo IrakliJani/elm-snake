@@ -23,8 +23,8 @@ main =
 
 type alias Model =
   { interval : Time
+  , nextDirection : Direction
   , direction : Direction
-  , lastDirection : Direction
   , snake : Snake
   , food : Maybe Coord
   }
@@ -32,8 +32,8 @@ type alias Model =
 init : (Model, Cmd Msg)
 init =
   ( { interval = 100
+    , nextDirection = Right
     , direction = Right
-    , lastDirection = Right
     , snake = (5, 5) |> List.repeat 5 |> List.indexedMap (\index -> Tuple.mapFirst (\x -> x + index))
     , food = Nothing
     }
@@ -51,10 +51,10 @@ type Msg
 type alias Update = (Model, Cmd Msg)
 
 setDirection : (Model, Cmd Msg) -> Result Update Update
-setDirection (model, cmd) = Ok ({ model | lastDirection = model.direction }, cmd)
+setDirection (model, cmd) = Ok ({ model | direction = model.nextDirection }, cmd)
 
 moveSnake_ : (Model, Cmd Msg) -> Result Update Update
-moveSnake_ (model, cmd) = Ok ({ model | snake = moveSnake model.direction model.snake }, cmd)
+moveSnake_ (model, cmd) = Ok ({ model | snake = moveSnake model.nextDirection model.snake }, cmd)
 
 checkCollision : (Model, Cmd Msg) -> Result Update Update
 checkCollision (model, cmd) =
@@ -93,7 +93,7 @@ update msg model =
     KeyPress keyCode ->
       case mapKeyCode keyCode of
         Just direction ->
-          ({ model | direction = nextDirection model.lastDirection direction }, Cmd.none)
+          ({ model | nextDirection = nextDirection model.direction direction }, Cmd.none)
         Nothing ->
           (model, Cmd.none)
 
