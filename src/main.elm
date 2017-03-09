@@ -4,9 +4,9 @@ import Svg.Attributes exposing (width, height, viewBox, x, y, fill, stroke, xlin
 import Time exposing (Time, millisecond, second)
 import Keyboard exposing (KeyCode)
 import Random
-
 import Shared exposing (..)
-import Controls exposing (Direction (..), mapKeyCode, nextDirection, moveSnake, eatFood, intersects)
+import Controls exposing (Direction (..), mapKeyCode, nextDirection)
+import Coordinator exposing (randomCoord, moveSnake, eatFood)
 
 main : Program Never Model Msg
 main =
@@ -27,24 +27,15 @@ type alias Model =
   , food : Maybe Coord
   }
 
-initialSnake : Snake
-initialSnake =
-  (5, 5)
-  |> List.repeat 5
-  |> List.indexedMap (\index -> Tuple.mapFirst (\x -> x + index))
-
-randomFoodCoord : Random.Generator Coord
-randomFoodCoord = (Random.map2 (,) (Random.int 0 (xBound - 1)) (Random.int 0 (yBound - 1)))
-
 init : (Model, Cmd Msg)
 init =
-  ( { interval = initialInterval
+  ( { interval = 100
     , direction = Right
     , lastDirection = Right
-    , snake = initialSnake
+    , snake = (5, 5) |> List.repeat 5 |> List.indexedMap (\index -> Tuple.mapFirst (\x -> x + index))
     , food = Nothing
     }
-  , Random.generate SetFood randomFoodCoord
+  , Random.generate SetFood (randomCoord xBound yBound)
   )
 
 -- UPDATE
@@ -55,31 +46,47 @@ type Msg
   | KeyPress KeyCode
   | SetFood Coord
 
+setDirection : (Model, Cmd Msg) -> (Model, Cmd Msg)
+setDirection (model, cmd) = ({ model | lastDirection = model.direction }, cmd)
+
+moveSnake_ : (Model, Cmd Msg) -> (Model, Cmd Msg)
+moveSnake_ (model, cmd) = ({ model | snake = moveSnake model.direction model.snake }, cmd)
+
+checkCollision : (Model, Cmd Msg) -> (Model, Cmd Msg)
+checkCollision (model, cmd) =
+  case Maybe.map2 (,) (snakeBody model.snake) (snakeHead model.snake) of
+    Just (body, head) ->
+      if any (List.map (\part -> intersects (Just part) (Just head)) body)
+      then init
+      else (model, cmd)
+    _ -> (model, cmd)
+
+eatFood_ : (Model, Cmd Msg) -> (Model, Cmd Msg)
+eatFood_ (model, cmd) =
+  let
+    newCmd = if intersects model.food (snakeHead model.snake)
+          then Random.generate SetFood (randomCoord xBound yBound)
+          else Cmd.none
+  in
+    if cmd == Cmd.none
+    then ({ model | snake = eatFood model.food model.snake }, newCmd)
+    else (model, cmd)
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     Tick _ ->
-      let
-        nextSnake = moveSnake model.direction model.snake
-        vograshiSnake = eatFood model.food nextSnake
-      in
-        ({ model | snake = vograshiSnake
-                 , lastDirection = model.direction}
-        , case Maybe.map2 (,) model.food (snakeHead nextSnake) of
-            Just (food, head) ->
-              if intersects head food
-                then Random.generate SetFood randomFoodCoord
-                else Cmd.none
-            _ -> Cmd.none
-        )
+      (model, Cmd.none) |> setDirection |> moveSnake_ |> checkCollision |> eatFood_
 
     IncrementInterval _ ->
       ({ model | interval = model.interval - 10 }, Cmd.none)
 
     KeyPress keyCode ->
       case mapKeyCode keyCode of
-        Just direction -> ({ model | direction = nextDirection model.lastDirection direction }, Cmd.none)
-        Nothing -> (model, Cmd.none)
+        Just direction ->
+          ({ model | direction = nextDirection model.lastDirection direction }, Cmd.none)
+        Nothing ->
+          (model, Cmd.none)
 
     SetFood foodCoord ->
       ({ model | food = Just foodCoord }, Cmd.none)
@@ -125,6 +132,7 @@ snake =
         , height (toString boxSize)
         , fill "black"
         , stroke "white"
+        , Svg.Attributes.strokeWidth "2"
         ] []
   in
     List.map body
