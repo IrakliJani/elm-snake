@@ -4,9 +4,11 @@ import Svg.Attributes exposing (width, height, viewBox, x, y, fill, stroke, xlin
 import Time exposing (Time, millisecond, second)
 import Keyboard exposing (KeyCode)
 import Random
+import Result exposing (Result (..), andThen)
 import Shared exposing (..)
 import Controls exposing (Direction (..), mapKeyCode, nextDirection)
 import Coordinator exposing (randomCoord, moveSnake, eatFood)
+
 
 main : Program Never Model Msg
 main =
@@ -46,37 +48,44 @@ type Msg
   | KeyPress KeyCode
   | SetFood Coord
 
-setDirection : (Model, Cmd Msg) -> (Model, Cmd Msg)
-setDirection (model, cmd) = ({ model | lastDirection = model.direction }, cmd)
+type alias Update = (Model, Cmd Msg)
 
-moveSnake_ : (Model, Cmd Msg) -> (Model, Cmd Msg)
-moveSnake_ (model, cmd) = ({ model | snake = moveSnake model.direction model.snake }, cmd)
+setDirection : (Model, Cmd Msg) -> Result Update Update
+setDirection (model, cmd) = Ok ({ model | lastDirection = model.direction }, cmd)
 
-checkCollision : (Model, Cmd Msg) -> (Model, Cmd Msg)
+moveSnake_ : (Model, Cmd Msg) -> Result Update Update
+moveSnake_ (model, cmd) = Ok ({ model | snake = moveSnake model.direction model.snake }, cmd)
+
+checkCollision : (Model, Cmd Msg) -> Result Update Update
 checkCollision (model, cmd) =
   case Maybe.map2 (,) (snakeBody model.snake) (snakeHead model.snake) of
     Just (body, head) ->
       if any (List.map (\part -> intersects (Just part) (Just head)) body)
-      then init
-      else (model, cmd)
-    _ -> (model, cmd)
+      then Err init
+      else Ok (model, cmd)
+    _ -> Ok (model, cmd)
 
-eatFood_ : (Model, Cmd Msg) -> (Model, Cmd Msg)
+eatFood_ : (Model, Cmd Msg) -> Result Update Update
 eatFood_ (model, cmd) =
   let
     newCmd = if intersects model.food (snakeHead model.snake)
-          then Random.generate SetFood (randomCoord xBound yBound)
-          else Cmd.none
+             then Random.generate SetFood (randomCoord xBound yBound)
+             else Cmd.none
   in
-    if cmd == Cmd.none
-    then ({ model | snake = eatFood model.food model.snake }, newCmd)
-    else (model, cmd)
+    Ok ({ model | snake = eatFood model.food model.snake }, newCmd)
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     Tick _ ->
-      (model, Cmd.none) |> setDirection |> moveSnake_ |> checkCollision |> eatFood_
+      case (model, Cmd.none)
+           |> setDirection
+           |> andThen moveSnake_
+           |> andThen checkCollision
+           |> andThen eatFood_
+      of
+        Ok result -> result
+        Err result -> result
 
     IncrementInterval _ ->
       ({ model | interval = model.interval - 10 }, Cmd.none)
