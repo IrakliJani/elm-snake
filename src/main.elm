@@ -86,9 +86,9 @@ eatFood_ : Update -> Result Update Update
 eatFood_ (model, cmd) =
     Ok ( { model | snake = eatFood model.food model.snake }
        , if intersects model.food (snakeHead model.snake)
-        then Random.generate SetFood (randomCoord config.xBound config.yBound)
-        else Cmd.none
-    )
+         then Random.generate SetFood (randomCoord config.xBound config.yBound)
+         else Cmd.none
+       )
 
 
 update : Msg -> Model -> Update
@@ -111,6 +111,7 @@ update msg model =
             case mapKeyCode keyCode of
                 Just direction ->
                     ({ model | nextDirection = nextDirection model.direction direction }, Cmd.none)
+
                 Nothing ->
                     (model, Cmd.none)
 
@@ -154,6 +155,7 @@ view model =
             (case khinkaliView of
                 Just khinkaliView ->
                     (backgroundView :: khinkaliView :: snakeView)
+
                 Nothing ->
                     (backgroundView :: snakeView))
 
@@ -186,5 +188,6 @@ khinkali coord =
                         , xlinkHref "/assets/images/khinkali@2x.png"
                         ]
                         [])
+
         Nothing ->
             Nothing
