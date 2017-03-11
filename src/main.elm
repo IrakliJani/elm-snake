@@ -112,9 +112,7 @@ init =
       , nextDirection = Right
       , direction = Right
       , food = Nothing
-      , snake = (5, 5)
-                |> List.repeat 5
-                |> List.indexedMap (\index -> Tuple.mapFirst (\x -> x + index))
+      , snake = List.map (\x-> (5 + x, 5)) (List.range 0 5)
       }
     , Random.generate SetFood (randomCoord config.xBound config.yBound)
     )
