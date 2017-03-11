@@ -1,4 +1,5 @@
-import Html exposing (Html)
+import Html exposing (Html, div)
+import Html.Attributes exposing (style)
 import Svg exposing (svg, rect, image)
 import Svg.Attributes exposing (width, height, viewBox, x, y, fill, stroke, xlinkHref)
 import Time exposing (Time, millisecond, second)
@@ -14,13 +15,6 @@ type alias Coord =
 
 type alias Snake =
     List Coord
-
-
-type alias Config =
-    { boxSize : Int
-    , xBound : Int
-    , yBound : Int
-    }
 
 
 type Direction
@@ -50,16 +44,13 @@ type alias Update =
     (Model, Cmd Msg)
 
 
-
--- HELPERS
-
-
-
-config : Config
 config =
     { boxSize = 20
     , xBound = 40
     , yBound = 30
+    , initialInterval = 150
+    , lowestInterval = 50
+    , decrementInterval = 20
     }
 
 
@@ -99,22 +90,6 @@ mapKeyCode keyCode =
         _ -> Nothing
 
 
-nextDirection : Direction -> Direction -> Direction
-nextDirection prev next =
-    case next of
-      Up ->
-        if prev == Down then Down else Up
-
-      Down ->
-        if prev == Up then Up else Down
-
-      Left ->
-        if prev == Right then Right else Left
-
-      Right ->
-        if prev == Left then Left else Right
-
-
 
 -- MAIN
 
@@ -137,7 +112,7 @@ main =
 
 init : Update
 init =
-    ( { interval = 100
+    ( { interval = config.initialInterval
       , nextDirection = Right
       , direction = Right
       , food = Nothing
@@ -222,6 +197,22 @@ eatFood (model, cmd) =
                 Ok (model, Cmd.none)
 
 
+nextDirection : Direction -> Direction -> Direction
+nextDirection prev next =
+    case next of
+      Up ->
+        if prev == Down then Down else Up
+
+      Down ->
+        if prev == Up then Up else Down
+
+      Left ->
+        if prev == Right then Right else Left
+
+      Right ->
+        if prev == Left then Left else Right
+
+
 update : Msg -> Model -> Update
 update msg model =
     case msg of
@@ -236,7 +227,10 @@ update msg model =
                 Err result -> result
 
         DecrementInterval _ ->
-            ({ model | interval = model.interval - 10 }, Cmd.none)
+            ({ model | interval = if model.interval == config.lowestInterval
+                                  then model.interval
+                                  else model.interval - 10 }
+            , Cmd.none)
 
         KeyPress keyCode ->
             case mapKeyCode keyCode of
@@ -259,7 +253,7 @@ subscriptions : Model -> Sub Msg
 subscriptions {interval} =
     Sub.batch
         [ Time.every (millisecond * interval) Tick
-        , Time.every (second * 30) DecrementInterval
+        , Time.every (second * config.decrementInterval) DecrementInterval
         , Keyboard.downs KeyPress
         ]
 
@@ -276,7 +270,7 @@ view model =
         height_ = toString (config.yBound * config.boxSize)
         viewBox_ = "0 0 " ++ width_ ++ " " ++ height_
 
-        backgroundView = rect [ width width_, height height_, fill "#EFEFEF" ] []
+        backgroundView = rect [ width width_, height height_, fill "#F8F5F0" ] []
         snakeView = snake model.snake
 
         view =
@@ -288,10 +282,16 @@ view model =
                     backgroundView :: snakeView
 
     in
-        svg [ width width_
-            , height height_
-            , viewBox viewBox_
-            ] view
+        div [ style [ ("height", "100%")
+                    , ("display", "flex")
+                    , ("align-items", "center")
+                    , ("justify-content", "center")
+                    ]
+            ] [ svg [ width width_
+                    , height height_
+                    , viewBox viewBox_
+                    ] view
+              ]
 
 
 snake : Snake -> List (Html Msg)
@@ -303,9 +303,9 @@ snake =
                 , y (toString (y2 * config.boxSize))
                 , width (toString config.boxSize)
                 , height (toString config.boxSize)
-                , fill "black"
+                , fill "#C54D48"
                 , stroke "white"
-                , Svg.Attributes.strokeWidth "2"
+                , Svg.Attributes.strokeWidth "1"
                 ] []
     in
         List.map body
@@ -319,7 +319,7 @@ khinkali coord =
                   , y (toString (y_ * config.boxSize))
                   , width (toString config.boxSize)
                   , height (toString config.boxSize)
-                  , xlinkHref "/assets/images/khinkali@2x.png"
+                  , xlinkHref "/assets/khinkali.jpg"
                   ] []
     in
         Maybe.map imageMapper coord
