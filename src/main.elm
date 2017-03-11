@@ -63,11 +63,7 @@ snakeBody = List.Extra.init
 
 
 any : List Bool -> Bool
-any list =
-    case list of
-        [] -> False
-        [x] -> x
-        x::xs -> if x == True then True else any xs
+any = List.foldl (||) False
 
 
 randomCoord : Int -> Int -> Random.Generator Coord
@@ -199,18 +195,12 @@ eatFood (model, cmd) =
 
 nextDirection : Direction -> Direction -> Direction
 nextDirection prev next =
-    case next of
-      Up ->
-        if prev == Down then Down else Up
-
-      Down ->
-        if prev == Up then Up else Down
-
-      Left ->
-        if prev == Right then Right else Left
-
-      Right ->
-        if prev == Left then Left else Right
+    case (prev, next) of
+        (Down, Up) -> Down
+        (Up, Down) -> Up
+        (Right, Left) -> Right
+        (Left, Right) ->  Left
+        _ -> next
 
 
 update : Msg -> Model -> Update
