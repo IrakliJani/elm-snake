@@ -282,7 +282,7 @@ view model =
                     backgroundView :: snakeView
 
     in
-        div [ style [ ("height", "100%")
+        div [ style [ ("height", "100vh")
                     , ("display", "flex")
                     , ("align-items", "center")
                     , ("justify-content", "center")
@@ -319,7 +319,7 @@ khinkali coord =
                   , y (toString (y_ * config.boxSize))
                   , width (toString config.boxSize)
                   , height (toString config.boxSize)
-                  , xlinkHref "/assets/khinkali.jpg"
+                  , xlinkHref "assets/khinkali.jpg"
                   ] []
     in
         Maybe.map imageMapper coord
