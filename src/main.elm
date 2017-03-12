@@ -55,15 +55,18 @@ config =
 
 
 snakeHead : Snake -> Maybe Coord
-snakeHead = List.Extra.last
+snakeHead =
+    List.Extra.last
 
 
 snakeBody : Snake -> Maybe (List Coord)
-snakeBody = List.Extra.init
+snakeBody =
+    List.Extra.init
 
 
 any : List Bool -> Bool
-any = List.foldl (||) False
+any =
+    List.foldl (||) False
 
 
 randomCoord : Int -> Int -> Random.Generator Coord
@@ -307,7 +310,7 @@ khinkali coord =
                   , y (toString (y_ * config.boxSize))
                   , width (toString config.boxSize)
                   , height (toString config.boxSize)
-                  , xlinkHref "assets/khinkali.jpg"
+                  , xlinkHref "/assets/khinkali.jpg"
                   ] []
     in
         Maybe.map imageMapper coord
