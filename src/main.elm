@@ -79,8 +79,8 @@ intersects a b =
     a == b
 
 
-mapKeyCode : KeyCode -> Maybe Direction
-mapKeyCode keyCode =
+keyCodeToDirection : KeyCode -> Maybe Direction
+keyCodeToDirection keyCode =
     case keyCode of
         37 -> Just Left
         38 -> Just Up
@@ -224,7 +224,7 @@ update msg model =
             , Cmd.none)
 
         KeyPress keyCode ->
-            case mapKeyCode keyCode of
+            case keyCodeToDirection keyCode of
                 Just direction ->
                     ({ model | nextDirection = nextDirection model.direction direction }, Cmd.none)
 
