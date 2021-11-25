@@ -1,21 +1,21 @@
 module Main exposing (..)
 
-import Debug
 import Browser
 import Browser.Events
+import Debug
 import Html exposing (Html, div)
 import Html.Attributes exposing (style)
-import Svg exposing (svg, rect, image)
-import Svg.Attributes exposing (width, height, viewBox, x, y, fill, stroke, xlinkHref)
 import Json.Decode as Decode exposing (Decoder)
-import Time
-import Random
-import Result exposing (Result (..), andThen)
 import List.Extra
+import Random
+import Result exposing (Result(..), andThen)
+import Svg exposing (image, rect, svg)
+import Svg.Attributes exposing (fill, height, stroke, viewBox, width, x, xlinkHref, y)
+import Time
 
 
 type alias Coord =
-    (Int, Int)
+    ( Int, Int )
 
 
 type alias Snake =
@@ -27,6 +27,7 @@ type Direction
     | Down
     | Left
     | Right
+
 
 keyDecoder : Decoder Msg
 keyDecoder =
@@ -70,7 +71,7 @@ type Msg
 
 
 type alias Update =
-    (Model, Cmd Msg)
+    ( Model, Cmd Msg )
 
 
 config =
@@ -101,7 +102,7 @@ any =
 randomCoord : Int -> Int -> Random.Generator Coord
 randomCoord xBound yBound =
     Random.map2
-        (\x y -> (x, y))
+        (\x y -> ( x, y ))
         (Random.int 0 (xBound - 1))
         (Random.int 0 (yBound - 1))
 
@@ -111,16 +112,17 @@ intersects a b =
     a == b
 
 
+
 -- MODEL
 
 
-init : (Model, Cmd Msg)
+init : ( Model, Cmd Msg )
 init =
     ( { interval = config.initialInterval
       , nextDirection = Right
       , direction = Right
       , food = Nothing
-      , snake = List.map (\x-> (5 + x, 5)) (List.range 0 5)
+      , snake = List.map (\x -> ( 5 + x, 5 )) (List.range 0 5)
       }
     , Random.generate SetFood (randomCoord config.xBound config.yBound)
     )
@@ -130,113 +132,163 @@ init =
 -- UPDATE
 
 
-
 setDirection : Update -> Result Update Update
-setDirection (model, cmd) =
-    Ok ({ model | direction = model.nextDirection }, cmd)
+setDirection ( model, cmd ) =
+    Ok ( { model | direction = model.nextDirection }, cmd )
 
 
 moveSnake : Update -> Result Update Update
-moveSnake (model, cmd) =
+moveSnake ( model, cmd ) =
     let
         updateDirection direction =
             case direction of
                 Up ->
-                    Tuple.mapSecond (\y -> if y - 1 < 0 then config.yBound - 1 else y - 1)
+                    Tuple.mapSecond
+                        (\y ->
+                            if y - 1 < 0 then
+                                config.yBound - 1
+
+                            else
+                                y - 1
+                        )
 
                 Left ->
-                    Tuple.mapFirst  (\x -> if x - 1 < 0 then config.xBound - 1 else x - 1)
+                    Tuple.mapFirst
+                        (\x ->
+                            if x - 1 < 0 then
+                                config.xBound - 1
+
+                            else
+                                x - 1
+                        )
 
                 Down ->
-                    Tuple.mapSecond (\y -> if y + 1 >= config.yBound then 0 else y + 1)
+                    Tuple.mapSecond
+                        (\y ->
+                            if y + 1 >= config.yBound then
+                                0
+
+                            else
+                                y + 1
+                        )
 
                 Right ->
-                    Tuple.mapFirst  (\x -> if x + 1 >= config.xBound then 0 else x + 1)
+                    Tuple.mapFirst
+                        (\x ->
+                            if x + 1 >= config.xBound then
+                                0
+
+                            else
+                                x + 1
+                        )
 
         move direction snake_ =
             case snakeHead snake_ of
                 Just head ->
-                    snake_ ++ [updateDirection direction head]
+                    snake_ ++ [ updateDirection direction head ]
 
                 Nothing ->
                     snake_
     in
-        Ok ({ model | snake = move model.nextDirection model.snake }, cmd)
+    Ok ( { model | snake = move model.nextDirection model.snake }, cmd )
 
 
 checkCollision : Update -> Result Update Update
-checkCollision (model, cmd) =
+checkCollision ( model, cmd ) =
     let
-        body__ = snakeBody model.snake
-        head__ = snakeHead model.snake
+        body__ =
+            snakeBody model.snake
+
+        head__ =
+            snakeHead model.snake
     in
-        case (body__, head__) of
-            (Just b, Just h) ->
-                if any (List.map (\part -> intersects part h) b)
-                then
-                    Err init
-                else
-                    Ok (model, cmd)
-            _ ->
-                Ok (model, cmd)
+    case ( body__, head__ ) of
+        ( Just b, Just h ) ->
+            if any (List.map (\part -> intersects part h) b) then
+                Err init
+
+            else
+                Ok ( model, cmd )
+
+        _ ->
+            Ok ( model, cmd )
 
 
 eatFood : Update -> Result Update Update
-eatFood (model, cmd) =
-    case (model.food, snakeHead model.snake) of
-        (Just food, Just head) ->
-            if intersects food head
-            then
-                Ok (model, Random.generate SetFood (randomCoord config.xBound config.yBound))
+eatFood ( model, cmd ) =
+    case ( model.food, snakeHead model.snake ) of
+        ( Just food, Just head ) ->
+            if intersects food head then
+                Ok ( model, Random.generate SetFood (randomCoord config.xBound config.yBound) )
+
             else
-                Ok ({ model | snake = List.drop 1 model.snake }, Cmd.none)
+                Ok ( { model | snake = List.drop 1 model.snake }, Cmd.none )
+
         _ ->
-            Ok (model, Cmd.none)
+            Ok ( model, Cmd.none )
 
 
 nextDirection : Direction -> Direction -> Direction
 nextDirection prev next =
-    case (prev, next) of
-        (Down, Up) -> Down
-        (Up, Down) -> Up
-        (Right, Left) -> Right
-        (Left, Right) ->  Left
-        _ -> next
+    case ( prev, next ) of
+        ( Down, Up ) ->
+            Down
+
+        ( Up, Down ) ->
+            Up
+
+        ( Right, Left ) ->
+            Right
+
+        ( Left, Right ) ->
+            Left
+
+        _ ->
+            next
 
 
 update : Msg -> Model -> Update
 update msg model =
     case msg of
         Tick _ ->
-            case (model, Cmd.none)
-                |> setDirection
-                |> andThen moveSnake
-                |> andThen checkCollision
-                |> andThen eatFood
+            case
+                ( model, Cmd.none )
+                    |> setDirection
+                    |> andThen moveSnake
+                    |> andThen checkCollision
+                    |> andThen eatFood
             of
-                Ok result -> result
-                Err result -> result
+                Ok result ->
+                    result
+
+                Err result ->
+                    result
 
         DecrementInterval _ ->
-            ({ model | interval = if model.interval == config.lowestInterval
-                                  then model.interval
-                                  else model.interval - 10 }
-            , Cmd.none)
+            ( { model
+                | interval =
+                    if model.interval == config.lowestInterval then
+                        model.interval
+
+                    else
+                        model.interval - 10
+              }
+            , Cmd.none
+            )
 
         KeyPress direction ->
-            ({ model | nextDirection = nextDirection model.direction direction }, Cmd.none)
+            ( { model | nextDirection = nextDirection model.direction direction }, Cmd.none )
 
         SetFood foodCoord ->
-            ({ model | food = Just foodCoord }, Cmd.none)
+            ( { model | food = Just foodCoord }, Cmd.none )
 
 
 
 -- SUBSCRIPTIONS
 
 
-
 subscriptions : Model -> Sub Msg
-subscriptions {interval} =
+subscriptions { interval } =
     Sub.batch
         [ Time.every (toFloat interval) Tick
         , Time.every (toFloat config.decrementInterval) DecrementInterval
@@ -247,15 +299,24 @@ subscriptions {interval} =
 
 -- VIEWS
 
+
 view : Model -> Html Msg
 view model =
     let
-        width_ = Debug.toString (config.xBound * config.boxSize)
-        height_ = Debug.toString (config.yBound * config.boxSize)
-        viewBox_ = "0 0 " ++ width_ ++ " " ++ height_
+        width_ =
+            Debug.toString (config.xBound * config.boxSize)
 
-        backgroundView = rect [ width width_, height height_, fill "#F8F5F0" ] []
-        snakeView = snake model.snake
+        height_ =
+            Debug.toString (config.yBound * config.boxSize)
+
+        viewBox_ =
+            "0 0 " ++ width_ ++ " " ++ height_
+
+        backgroundView =
+            rect [ width width_, height height_, fill "#F8F5F0" ] []
+
+        snakeView =
+            snake model.snake
 
         khinkaliView =
             case khinkali model.food of
@@ -264,25 +325,26 @@ view model =
 
                 Nothing ->
                     backgroundView :: snakeView
-
     in
-        div [ style "height" "100vh"
-            , style "display" "flex"
-            , style "align-items" "center"
-            , style "justify-content" "center"
-            ] [ svg [ width width_
-                    , height height_
-                    , viewBox viewBox_
-                    ] khinkaliView
-              ]
-
-
+    div
+        [ style "height" "100vh"
+        , style "display" "flex"
+        , style "align-items" "center"
+        , style "justify-content" "center"
+        ]
+        [ svg
+            [ width width_
+            , height height_
+            , viewBox viewBox_
+            ]
+            khinkaliView
+        ]
 
 
 snake : Snake -> List (Html Msg)
 snake =
     let
-        body (x1, y2) =
+        body ( x1, y2 ) =
             rect
                 [ x (Debug.toString (x1 * config.boxSize))
                 , y (Debug.toString (y2 * config.boxSize))
@@ -291,30 +353,36 @@ snake =
                 , fill "#C54D48"
                 , stroke "white"
                 , Svg.Attributes.strokeWidth "1"
-                ] []
+                ]
+                []
     in
-        List.map body
+    List.map body
 
 
 khinkali : Maybe Coord -> Maybe (Html Msg)
 khinkali coord =
     let
-        imageMapper (x_, y_) =
-            image [ x (Debug.toString (x_ * config.boxSize))
-                  , y (Debug.toString (y_ * config.boxSize))
-                  , width (Debug.toString config.boxSize)
-                  , height (Debug.toString config.boxSize)
-                  , xlinkHref "/assets/khinkali.jpg"
-                  ] []
+        imageMapper ( x_, y_ ) =
+            image
+                [ x (Debug.toString (x_ * config.boxSize))
+                , y (Debug.toString (y_ * config.boxSize))
+                , width (Debug.toString config.boxSize)
+                , height (Debug.toString config.boxSize)
+                , xlinkHref "/assets/khinkali.jpg"
+                ]
+                []
     in
-        Maybe.map imageMapper coord
+    Maybe.map imageMapper coord
+
+
 
 -- MAIN
+
 
 main : Program () Model Msg
 main =
     Browser.element
-        { init = (\_ -> init)
+        { init = \_ -> init
         , view = view
         , update = update
         , subscriptions = subscriptions
