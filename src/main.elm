@@ -1,9 +1,14 @@
+module Main exposing (..)
+
+import Debug
+import Browser
+import Browser.Events
 import Html exposing (Html, div)
 import Html.Attributes exposing (style)
 import Svg exposing (svg, rect, image)
 import Svg.Attributes exposing (width, height, viewBox, x, y, fill, stroke, xlinkHref)
-import Time exposing (Time, millisecond, second)
-import Keyboard exposing (KeyCode)
+import Json.Decode as Decode exposing (Decoder)
+import Time
 import Random
 import Result exposing (Result (..), andThen)
 import List.Extra
@@ -23,9 +28,33 @@ type Direction
     | Left
     | Right
 
+keyDecoder : Decoder Msg
+keyDecoder =
+    Decode.field "key" Decode.string
+        |> Decode.andThen keyToMsg
+
+
+keyToMsg : String -> Decoder Msg
+keyToMsg s =
+    case s of
+        "ArrowLeft" ->
+            Decode.succeed (KeyPress Left)
+
+        "ArrowRight" ->
+            Decode.succeed (KeyPress Right)
+
+        "ArrowUp" ->
+            Decode.succeed (KeyPress Up)
+
+        "ArrowDown" ->
+            Decode.succeed (KeyPress Down)
+
+        _ ->
+            Decode.fail ("Not interested in " ++ s)
+
 
 type alias Model =
-    { interval : Time
+    { interval : Int
     , nextDirection : Direction
     , direction : Direction
     , snake : Snake
@@ -34,9 +63,9 @@ type alias Model =
 
 
 type Msg
-    = Tick Time
-    | DecrementInterval Time
-    | KeyPress KeyCode
+    = Tick Time.Posix
+    | DecrementInterval Time.Posix
+    | KeyPress Direction
     | SetFood Coord
 
 
@@ -71,7 +100,10 @@ any =
 
 randomCoord : Int -> Int -> Random.Generator Coord
 randomCoord xBound yBound =
-    Random.map2 (,) (Random.int 0 (xBound - 1)) (Random.int 0 (yBound - 1))
+    Random.map2
+        (\x y -> (x, y))
+        (Random.int 0 (xBound - 1))
+        (Random.int 0 (yBound - 1))
 
 
 intersects : Coord -> Coord -> Bool
@@ -79,37 +111,10 @@ intersects a b =
     a == b
 
 
-keyCodeToDirection : KeyCode -> Maybe Direction
-keyCodeToDirection keyCode =
-    case keyCode of
-        37 -> Just Left
-        38 -> Just Up
-        39 -> Just Right
-        40 -> Just Down
-        _ -> Nothing
-
-
-
--- MAIN
-
-
-
-main : Program Never Model Msg
-main =
-    Html.program
-        { init = init
-        , view = view
-        , update = update
-        , subscriptions = subscriptions
-        }
-
-
-
 -- MODEL
 
 
-
-init : Update
+init : (Model, Cmd Msg)
 init =
     ( { interval = config.initialInterval
       , nextDirection = Right
@@ -148,13 +153,13 @@ moveSnake (model, cmd) =
                 Right ->
                     Tuple.mapFirst  (\x -> if x + 1 >= config.xBound then 0 else x + 1)
 
-        move direction snake =
-            case snakeHead snake of
+        move direction snake_ =
+            case snakeHead snake_ of
                 Just head ->
-                    snake ++ [updateDirection direction head]
+                    snake_ ++ [updateDirection direction head]
 
                 Nothing ->
-                    snake
+                    snake_
     in
         Ok ({ model | snake = move model.nextDirection model.snake }, cmd)
 
@@ -162,12 +167,12 @@ moveSnake (model, cmd) =
 checkCollision : Update -> Result Update Update
 checkCollision (model, cmd) =
     let
-        body = snakeBody model.snake
-        head = snakeHead model.snake
+        body__ = snakeBody model.snake
+        head__ = snakeHead model.snake
     in
-        case (body, head) of
-            (Just body, Just head) ->
-                if any (List.map (\part -> intersects part head) body)
+        case (body__, head__) of
+            (Just b, Just h) ->
+                if any (List.map (\part -> intersects part h) b)
                 then
                     Err init
                 else
@@ -178,20 +183,15 @@ checkCollision (model, cmd) =
 
 eatFood : Update -> Result Update Update
 eatFood (model, cmd) =
-    let
-        snake = model.snake
-        food = model.food
-        head = snakeHead snake
-    in
-        case (food, head) of
-            (Just food, Just head) ->
-                if intersects food head
-                then
-                    Ok (model, Random.generate SetFood (randomCoord config.xBound config.yBound))
-                else
-                    Ok ({ model | snake = List.drop 1 snake }, Cmd.none)
-            _ ->
-                Ok (model, Cmd.none)
+    case (model.food, snakeHead model.snake) of
+        (Just food, Just head) ->
+            if intersects food head
+            then
+                Ok (model, Random.generate SetFood (randomCoord config.xBound config.yBound))
+            else
+                Ok ({ model | snake = List.drop 1 model.snake }, Cmd.none)
+        _ ->
+            Ok (model, Cmd.none)
 
 
 nextDirection : Direction -> Direction -> Direction
@@ -223,13 +223,8 @@ update msg model =
                                   else model.interval - 10 }
             , Cmd.none)
 
-        KeyPress keyCode ->
-            case keyCodeToDirection keyCode of
-                Just direction ->
-                    ({ model | nextDirection = nextDirection model.direction direction }, Cmd.none)
-
-                Nothing ->
-                    (model, Cmd.none)
+        KeyPress direction ->
+            ({ model | nextDirection = nextDirection model.direction direction }, Cmd.none)
 
         SetFood foodCoord ->
             ({ model | food = Just foodCoord }, Cmd.none)
@@ -243,46 +238,45 @@ update msg model =
 subscriptions : Model -> Sub Msg
 subscriptions {interval} =
     Sub.batch
-        [ Time.every (millisecond * interval) Tick
-        , Time.every (second * config.decrementInterval) DecrementInterval
-        , Keyboard.downs KeyPress
+        [ Time.every (toFloat interval) Tick
+        , Time.every (toFloat config.decrementInterval) DecrementInterval
+        , Browser.Events.onKeyDown keyDecoder
         ]
 
 
 
 -- VIEWS
 
-
-
 view : Model -> Html Msg
 view model =
     let
-        width_ = toString (config.xBound * config.boxSize)
-        height_ = toString (config.yBound * config.boxSize)
+        width_ = Debug.toString (config.xBound * config.boxSize)
+        height_ = Debug.toString (config.yBound * config.boxSize)
         viewBox_ = "0 0 " ++ width_ ++ " " ++ height_
 
         backgroundView = rect [ width width_, height height_, fill "#F8F5F0" ] []
         snakeView = snake model.snake
 
-        view =
+        khinkaliView =
             case khinkali model.food of
-                Just khinkaliView ->
-                    backgroundView :: khinkaliView :: snakeView
+                Just view_ ->
+                    backgroundView :: view_ :: snakeView
 
                 Nothing ->
                     backgroundView :: snakeView
 
     in
-        div [ style [ ("height", "100vh")
-                    , ("display", "flex")
-                    , ("align-items", "center")
-                    , ("justify-content", "center")
-                    ]
+        div [ style "height" "100vh"
+            , style "display" "flex"
+            , style "align-items" "center"
+            , style "justify-content" "center"
             ] [ svg [ width width_
                     , height height_
                     , viewBox viewBox_
-                    ] view
+                    ] khinkaliView
               ]
+
+
 
 
 snake : Snake -> List (Html Msg)
@@ -290,10 +284,10 @@ snake =
     let
         body (x1, y2) =
             rect
-                [ x (toString (x1 * config.boxSize))
-                , y (toString (y2 * config.boxSize))
-                , width (toString config.boxSize)
-                , height (toString config.boxSize)
+                [ x (Debug.toString (x1 * config.boxSize))
+                , y (Debug.toString (y2 * config.boxSize))
+                , width (Debug.toString config.boxSize)
+                , height (Debug.toString config.boxSize)
                 , fill "#C54D48"
                 , stroke "white"
                 , Svg.Attributes.strokeWidth "1"
@@ -306,11 +300,22 @@ khinkali : Maybe Coord -> Maybe (Html Msg)
 khinkali coord =
     let
         imageMapper (x_, y_) =
-            image [ x (toString (x_ * config.boxSize))
-                  , y (toString (y_ * config.boxSize))
-                  , width (toString config.boxSize)
-                  , height (toString config.boxSize)
+            image [ x (Debug.toString (x_ * config.boxSize))
+                  , y (Debug.toString (y_ * config.boxSize))
+                  , width (Debug.toString config.boxSize)
+                  , height (Debug.toString config.boxSize)
                   , xlinkHref "/assets/khinkali.jpg"
                   ] []
     in
         Maybe.map imageMapper coord
+
+-- MAIN
+
+main : Program () Model Msg
+main =
+    Browser.element
+        { init = (\_ -> init)
+        , view = view
+        , update = update
+        , subscriptions = subscriptions
+        }
