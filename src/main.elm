@@ -3,7 +3,7 @@ module Main exposing (..)
 import Browser
 import Browser.Events
 import Debug
-import Html exposing (Html, div)
+import Html exposing (Html, div, text)
 import Html.Attributes exposing (style)
 import Json.Decode as Decode exposing (Decoder)
 import List.Extra
@@ -78,6 +78,7 @@ config =
     { boxSize = 20
     , xBound = 40
     , yBound = 30
+    , initialSnakeLength = 5
     , initialInterval = 150
     , lowestInterval = 50
     , decrementInterval = 20
@@ -122,7 +123,7 @@ init =
       , nextDirection = Right
       , direction = Right
       , food = Nothing
-      , snake = List.map (\x -> ( 5 + x, 5 )) (List.range 0 5)
+      , snake = List.map (\x -> ( config.initialSnakeLength + x, config.initialSnakeLength )) (List.range 0 config.initialSnakeLength)
       }
     , Random.generate SetFood (randomCoord config.xBound config.yBound)
     )
@@ -329,10 +330,14 @@ view model =
     div
         [ style "height" "100vh"
         , style "display" "flex"
+        , style "flex-direction" "column"
         , style "align-items" "center"
         , style "justify-content" "center"
         ]
-        [ svg
+        [ div [ style "margin-bottom" "10px", style "font-family" "monospace", style "font-size" "20px", style "font-weight" "bold" ]
+            [ text ("Score: " ++ Debug.toString ((List.length model.snake - config.initialSnakeLength - 1) * 10))
+            ]
+        , svg
             [ width width_
             , height height_
             , viewBox viewBox_
