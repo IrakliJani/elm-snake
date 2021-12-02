@@ -79,9 +79,10 @@ config =
     , xBound = 40
     , yBound = 30
     , initialSnakeLength = 5
-    , initialInterval = 150
+    , initialInterval = 100
     , lowestInterval = 50
-    , decrementInterval = 20
+    , decrementInterval = 20 * 1000
+    , decrementIntervalBy = 5
     }
 
 
@@ -272,7 +273,7 @@ update msg model =
                         model.interval
 
                     else
-                        model.interval - 10
+                        model.interval - config.decrementIntervalBy
               }
             , Cmd.none
             )
@@ -373,7 +374,7 @@ khinkali coord =
                 , y (Debug.toString (y_ * config.boxSize))
                 , width (Debug.toString config.boxSize)
                 , height (Debug.toString config.boxSize)
-                , xlinkHref "/assets/khinkali.jpg"
+                , xlinkHref "khinkali.jpg"
                 ]
                 []
     in
